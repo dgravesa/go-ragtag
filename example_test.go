@@ -9,27 +9,20 @@ import (
 )
 
 func Mask(v interface{}) error {
-	tagExecutor := ragtag.Executor{
-		TagKey:  "mask",
-		TagFunc: applyMask,
-	}
-
-	return tagExecutor.Execute(v)
+	return ragtag.Execute(v, applyMask)
 }
 
-func applyMask(val reflect.Value, tagVal string) error {
-	if len(tagVal) > 1 {
-		return fmt.Errorf("mask tag value must be a single character")
+func applyMask(val reflect.Value, tag reflect.StructTag) error {
+	maskTag, hasMaskTag := tag.Lookup("mask")
+
+	if hasMaskTag {
+		val.SetString(strings.Repeat(maskTag, val.Len()))
 	}
-
-	lenS := len(val.String())
-
-	val.SetString(strings.Repeat(tagVal, lenS))
 
 	return nil
 }
 
-func ExampleRagTag() {
+func ExampleExecute() {
 	type Inner struct {
 		OtherStr   string
 		MyInnerStr string `mask:"X"`

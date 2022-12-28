@@ -4,16 +4,57 @@ import (
 	"reflect"
 )
 
-type TagFunc func(val reflect.Value, tagVal string) error
+type Func func(val reflect.Value, tag reflect.StructTag) error
 
-type Executor struct {
-	TagKey string
-
-	TagFunc TagFunc
+func Execute(v interface{}, f Func) error {
+	return executePrePost(reflect.ValueOf(v), "", f, nil)
 }
 
-func (e Executor) Execute(v interface{}) error {
-	return e.execute(reflect.ValueOf(v))
+func ExecutePrePost(v interface{}, pre, post Func) error {
+	return executePrePost(reflect.ValueOf(v), "", pre, post)
+}
+
+func executePrePost(val reflect.Value, tag reflect.StructTag, pre, post Func) error {
+	if pre != nil {
+		if err := pre(val, tag); err != nil {
+			return err
+		}
+	}
+
+	elem := getElement(val)
+
+	switch elem.Kind() {
+	case reflect.Struct:
+		t := elem.Type()
+		for i := 0; i < t.NumField(); i++ {
+			// execute recursively
+			if err := executePrePost(elem.Field(i), t.Field(i).Tag, pre, post); err != nil {
+				return err
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < elem.Len(); i++ {
+			// execute recursively
+			if err := executePrePost(elem.Index(i), "", pre, post); err != nil {
+				return err
+			}
+		}
+	case reflect.Map:
+		for _, k := range elem.MapKeys() {
+			// execute recursively
+			if err := executePrePost(elem.MapIndex(k), "", pre, post); err != nil {
+				return err
+			}
+		}
+	}
+
+	if post != nil {
+		if err := post(val, tag); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func getElement(val reflect.Value) reflect.Value {
@@ -21,35 +62,4 @@ func getElement(val reflect.Value) reflect.Value {
 		return val.Elem()
 	}
 	return val
-}
-
-func (e Executor) execute(val reflect.Value) error {
-	val = getElement(val)
-
-	switch val.Kind() {
-	case reflect.Struct:
-		t := val.Type()
-		for i := 0; i < t.NumField(); i++ {
-			if tagVal, tagSpecified := t.Field(i).Tag.Lookup(e.TagKey); tagSpecified {
-				// apply custom tag operation to field
-				if err := e.TagFunc(val.Field(i), tagVal); err != nil {
-					return err
-				}
-			} else {
-				// execute recursively
-				if err := e.execute(val.Field(i)); err != nil {
-					return err
-				}
-			}
-		}
-	case reflect.Slice, reflect.Array:
-		for i := 0; i < val.Len(); i++ {
-			// execute recursively
-			if err := e.execute(val.Index(i)); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
