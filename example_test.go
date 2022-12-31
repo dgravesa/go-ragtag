@@ -8,16 +8,12 @@ import (
 	"github.com/dgravesa/go-ragtag"
 )
 
-func Mask(v interface{}) error {
-	return ragtag.Execute(v, applyMask)
+func Mask(v any) error {
+	return ragtag.Execute("mask", v, applyMask)
 }
 
-func applyMask(val reflect.Value, tag reflect.StructTag) error {
-	maskTag, hasMaskTag := tag.Lookup("mask")
-
-	if hasMaskTag {
-		val.SetString(strings.Repeat(maskTag, val.Len()))
-	}
+func applyMask(val reflect.Value, maskTag string) error {
+	val.SetString(strings.Repeat(maskTag, val.Len()))
 
 	return nil
 }
@@ -48,7 +44,6 @@ func ExampleExecute() {
 	fmt.Println(s.MyOuterStr)
 	fmt.Println(s.Inner.OtherStr)
 	fmt.Println(s.Inner.MyInnerStr)
-
 	// Output:
 	// -------------
 	// this is another string
